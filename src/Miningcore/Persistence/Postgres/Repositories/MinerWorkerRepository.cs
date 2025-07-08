@@ -12,6 +12,13 @@ namespace Miningcore.Persistence.Postgres.Repositories;
 
 public class MinerWorkerRepository : IMinerWorkerRepository
 {
+    public MinerWorkerRepository(IMapper mapper)
+    {
+        this.mapper = mapper;
+    }
+    
+    private readonly IMapper mapper;
+
     public async Task<Model.MinerWorkerStats> GetWorkerStatsAsync(
         IDbConnection con, IDbTransaction tx,
         string poolId, string miner, string worker)
