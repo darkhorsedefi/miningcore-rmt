@@ -3,6 +3,7 @@ using AutoMapper;
 using Dapper;
 using Miningcore.Persistence.Model;
 using Miningcore.Persistence.Repositories;
+using Miningcore.Persistence.Postgres.Entities;
 
 namespace Miningcore.Persistence.Postgres.Repositories;
 
@@ -17,11 +18,68 @@ public class MinerWorkerRepository : IMinerWorkerRepository
 
     public async Task<MinerWorkerStats> GetWorkerStatsAsync(IDbConnection con, IDbTransaction tx, string poolId, string miner, string worker)
     {
-        const string query = @"SELECT * FROM workerstats WHERE poolid = @poolId AND miner = @miner AND worker = @worker";
+        const string selectQuery = @"
+            SELECT *
+                FROM workerstats
+                WHERE poolid = @poolId
+                AND miner  = @miner
+                AND worker = @worker";
 
-        var entity = await con.QuerySingleOrDefaultAsync<Entities.MinerWorkerStats>(query, new {poolId, miner, worker}, tx);
+        var statsEntity = await con.QuerySingleOrDefaultAsync<Entities.MinerWorkerStats>(
+            selectQuery,
+            new { poolId, miner, worker },
+            tx);
 
-        return mapper.Map<MinerWorkerStats>(entity);
+        if (statsEntity == null)
+            return null;
+
+        // Count valid shares
+        statsEntity.ValidShares = await con.ExecuteScalarAsync<long>(
+            @"SELECT COUNT(*)
+                FROM shares
+                WHERE poolid = @poolId
+                    AND miner  = @miner
+                    AND worker = @worker",
+            new { poolId, miner, worker },
+            tx);
+
+        // Count invalid shares
+        statsEntity.InvalidShares = await con.ExecuteScalarAsync<long>(
+            @"SELECT COUNT(*)
+                FROM shareerrors
+                WHERE poolid = @poolId
+                    AND miner  = @miner
+                    AND worker = @worker",
+            new { poolId, miner, worker },
+            tx);
+
+        // Count found blocks
+        statsEntity.FoundBlocks = await con.ExecuteScalarAsync<long>(
+            @"SELECT COUNT(*)
+                FROM blocks
+                WHERE poolid = @poolId
+                    AND miner  = @miner
+                    AND worker = @worker
+                    AND status = 'confirmed'",
+            new { poolId, miner, worker },
+            tx);
+
+        // Map to domain model
+        var result = new MinerWorkerStats
+        {
+            PoolId         = statsEntity.PoolId,
+            Miner          = statsEntity.Miner,
+            Worker         = statsEntity.Worker,
+            Created        = statsEntity.Created,
+            Updated        = statsEntity.Updated,
+            BestDifficulty = statsEntity.BestDifficulty,
+            Difficulty     = statsEntity.Difficulty,
+            ValidShares    = statsEntity.ValidShares,
+            InvalidShares  = statsEntity.InvalidShares,
+            FoundBlocks    = statsEntity.FoundBlocks
+        };
+
+        return result;
     }
 
     public async Task<MinerWorkerStats[]> GetWorkerStatsAsync(IDbConnection con, IDbTransaction tx, string poolId, string miner)
