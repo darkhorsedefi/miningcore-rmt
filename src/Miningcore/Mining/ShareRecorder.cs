@@ -42,7 +42,7 @@ public class ShareRecorder : BackgroundService
         Contract.RequiresNonNull(mapper);
         Contract.RequiresNonNull(shareRepo);
         Contract.RequiresNonNull(blockRepo);
-        //Contract.RequiresNonNull(workerRepo);
+        Contract.RequiresNonNull(workerRepo);
         Contract.RequiresNonNull(jsonSerializerSettings);
         Contract.RequiresNonNull(messageBus);
 
@@ -54,7 +54,8 @@ public class ShareRecorder : BackgroundService
 
         this.shareRepo = shareRepo;
         this.blockRepo = blockRepo;
-        this.workerRepo = workerRepo == null ? new Persistence.Postgres.Repositories.MinerWorkerRepository(mapper) : workerRepo;
+        //this.workerRepo = workerRepo == null ? new Persistence.Postgres.Repositories.MinerWorkerRepository(mapper) : workerRepo;
+        this.workerRepo = workerRepo;
 
         pools = clusterConfig.Pools.ToDictionary(x => x.Id, x => x);
 
