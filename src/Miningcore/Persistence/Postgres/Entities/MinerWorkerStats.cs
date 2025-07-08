@@ -9,4 +9,8 @@ public class MinerWorkerStats
     public double BestDifficulty { get; set; }
     public DateTime Created { get; set; }
     public DateTime Updated { get; set; }
+    public long ValidShares { get; set; }
+    public long InvalidShares { get; set; }
+    public long FoundBlocks { get; set; }
+    public double Difficulty { get; set; }
 }
