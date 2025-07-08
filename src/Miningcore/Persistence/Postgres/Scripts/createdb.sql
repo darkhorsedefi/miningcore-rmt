@@ -134,6 +134,10 @@ CREATE TABLE workerstats
 	bestdifficulty DOUBLE PRECISION NOT NULL DEFAULT 0,
 	created TIMESTAMPTZ NOT NULL,
 	updated TIMESTAMPTZ NOT NULL,
+	validshares BIGINT NOT NULL DEFAULT 0,
+	invalidshares BIGINT NOT NULL DEFAULT 0,
+	foundblocks BIGINT NOT NULL DEFAULT 0,
+	difficulty DOUBLE PRECISION NULL,
 
 	primary key(poolid, miner, worker)
 );
@@ -142,3 +146,18 @@ CREATE INDEX IDX_WORKERSTATS_POOL_CREATED on workerstats(poolid, created);
 CREATE INDEX IDX_WORKERSTATS_POOL_MINER_CREATED on workerstats(poolid, miner, created);
 CREATE INDEX IDX_WORKERSTATS_POOL_MINER__WORKER_CREATED on workerstats(poolid, miner, worker, created);
 CREATE INDEX IDX_WORKERSTATS_POOL_MINER_WORKER_CREATED_BESTDIFFICULTY on workerstats(poolid,miner,worker,created desc,bestdifficulty);
+CREATE INDEX IDX_WORKERSTATS_VALIDSHARES on workerstats(poolid, miner, validshares);
+CREATE INDEX IDX_WORKERSTATS_DIFFICULTY on workerstats(poolid, miner, difficulty);
+
+CREATE TABLE shareerrors
+(
+    id BIGSERIAL        NOT NULL PRIMARY KEY,
+    poolid TEXT         NOT NULL,
+    miner TEXT          NOT NULL,
+    worker TEXT         NULL,
+    useragent TEXT      NULL,
+    ipaddress TEXT      NOT NULL,
+    source TEXT         NULL,
+    created TIMESTAMPTZ NOT NULL
+);
+CREATE INDEX IDX_SHAREERRORS_POOL_MINER_WORKER ON shareerrors(poolid, miner, worker);
