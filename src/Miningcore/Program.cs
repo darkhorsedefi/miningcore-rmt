@@ -644,25 +644,8 @@ public class Program : BackgroundService
 
     private static void Logo()
     {
-        Console.WriteLine(@"
- ███╗   ███╗██╗███╗   ██╗██╗███╗   ██╗ ██████╗  ██████╗ ██████╗ ██████╗ ███████╗
- ████╗ ████║██║████╗  ██║██║████╗  ██║██╔════╝ ██╔════╝██╔═══██╗██╔══██╗██╔════╝
- ██╔████╔██║██║██╔██╗ ██║██║██╔██╗ ██║██║  ███╗██║     ██║   ██║██████╔╝█████╗
- ██║╚██╔╝██║██║██║╚██╗██║██║██║╚██╗██║██║   ██║██║     ██║   ██║██╔══██╗██╔══╝
- ██║ ╚═╝ ██║██║██║ ╚████║██║██║ ╚████║╚██████╔╝╚██████╗╚██████╔╝██║  ██║███████╗
-");
-        Console.WriteLine(" https://github.com/TheRetroMike/rmt-miningcore\n");
-        Console.WriteLine(" Donate to one of these addresses to support the project:\n");
-
-        Console.WriteLine(" BCH  - bitcoincash:qzczcn98zusq77fk6jq744xu0u8jlrd6su930qk7x7");
-        Console.WriteLine(" BNB  - 0xde6b4E548d71459Af5041dA71883AEA62426e68E");
-        Console.WriteLine(" BTC  - 31q6x9Vp9J2BJ8rTnW4F8aP744CEAScFN5");
-        Console.WriteLine(" DOGE - DSQLL3m5B1BwZa7jaNnoYaXHVeT9cAHUvd");
-        Console.WriteLine(" ETH  - 0xde6b4E548d71459Af5041dA71883AEA62426e68E");
-        Console.WriteLine(" KAS  - kaspa:qzs36kutqphrqzwnl34zd36wqtsr97dvy6np83ugqac75zjgvsy7qgk4yr722");
-        Console.WriteLine(" LTC  - MAhooUHqeTdhJoMEjbgTwFSqhZmbzyko83");
-        Console.WriteLine(" POL  - 0xde6b4E548d71459Af5041dA71883AEA62426e68E");
-        Console.WriteLine(" SOL  - AsHA1y22XnYf3SwP6g5iGSvJhMcSGaBtEQbzcSccPkJ4");
+        Console.WriteLine(@"");
+        Console.WriteLine(" Mining pool is starting:\n");
         Console.WriteLine();
     }
 
