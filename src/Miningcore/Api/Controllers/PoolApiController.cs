@@ -114,7 +114,7 @@ public class PoolApiController : ApiControllerBase
             });
 
         // convert curly braces
-        var result = string.Join("\n", tmp).Replace("{", "<").Replace("}", ">") + "\n";
+        var result = string.Join("\n", tmp).Replace("{", "<").Replace("}", ">")  "\n";
 
         return Content(result);
     }
@@ -822,7 +822,23 @@ public class PoolApiController : ApiControllerBase
         if(result == null)
             throw new ApiException("No worker stats found", HttpStatusCode.NotFound);
 
-        return mapper.Map<Responses.WorkerStats>(result);
+        //return mapper.Map<Responses.WorkerStats>(result);
+        
+        // compute real uptime as now minus first‐seen
+        var now    = DateTime.UtcNow;
+        var uptime = now - result.Created;
+
+        return new Responses.WorkerStats
+        {
+            Miner          = result.Miner,
+            Worker         = result.Worker,
+            BestDifficulty = result.BestDifficulty,
+            ValidShares    = result.ValidShares,
+            InvalidShares  = result.InvalidShares,
+            FoundBlocks    = result.FoundBlocks,
+            Difficulty     = result.Difficulty,
+            Uptime         = uptime
+        };
     }
 
     #endregion // Actions
