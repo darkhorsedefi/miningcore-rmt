@@ -114,7 +114,7 @@ public class PoolApiController : ApiControllerBase
             });
 
         // convert curly braces
-        var result = string.Join("\n", tmp).Replace("{", "<").Replace("}", ">")  "\n";
+        var result = string.Join("\n", tmp).Replace("{", "<").Replace("}", ">") + "\n";
 
         return Content(result);
     }
@@ -806,29 +806,24 @@ public class PoolApiController : ApiControllerBase
     [HttpGet("{poolId}/miners/{address}/workers/{worker}/workerstats")]
     public async Task<Responses.WorkerStats> GetWorkerStatsAsync(string poolId, string address, string worker)
     {
-        // Validate inputs & get pool
         var pool = GetPool(poolId);
 
-        if (string.IsNullOrEmpty(address))
+        if(string.IsNullOrEmpty(address))
             throw new ApiException("Invalid or missing miner address", HttpStatusCode.NotFound);
 
-        if (string.IsNullOrEmpty(worker))
+        if(string.IsNullOrEmpty(worker))
             throw new ApiException("Invalid or missing worker name", HttpStatusCode.NotFound);
 
-        if (pool.Template.Family == CoinFamily.Ethereum)
+        if(pool.Template.Family == CoinFamily.Ethereum)
             address = address.ToLower();
 
-        // Fetch the stats DTO from your repository
-        var result = await cf.Run(con =>
-            workerRepo.GetWorkerStatsAsync(con, null, pool.Id, address, worker)
-        );
+        var result = await cf.Run(con => workerRepo.GetWorkerStatsAsync(con, null, pool.Id, address, worker));
 
-        if (result == null)
+        if(result == null)
             throw new ApiException("No worker stats found", HttpStatusCode.NotFound);
 
         return mapper.Map<Responses.WorkerStats>(result);
     }
-
 
     #endregion // Actions
 
