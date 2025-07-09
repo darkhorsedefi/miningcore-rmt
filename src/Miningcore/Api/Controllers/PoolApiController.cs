@@ -802,7 +802,7 @@ public class PoolApiController : ApiControllerBase
 
         return mapper.Map<Responses.WorkerStats[]>(result);
     }
-
+    /*
     [HttpGet("{poolId}/miners/{address}/workers/{worker}/workerstats")]
     public async Task<Responses.WorkerStats> GetWorkerStatsAsync(string poolId, string address, string worker)
     {
@@ -823,6 +823,46 @@ public class PoolApiController : ApiControllerBase
             throw new ApiException("No worker stats found", HttpStatusCode.NotFound);
 
         return mapper.Map<Responses.WorkerStats>(result);
+    }
+    */
+    [HttpGet("{poolId}/miners/{address}/workers/{worker}/workerstats")]
+    public async Task<Responses.WorkerStats> GetWorkerStatsAsync(
+        string poolId, string address, string worker)
+    {
+        var pool = GetPool(poolId);
+
+        if (string.IsNullOrEmpty(address))
+            throw new ApiException("Invalid or missing miner address", HttpStatusCode.NotFound);
+
+        if (string.IsNullOrEmpty(worker))
+            throw new ApiException("Invalid or missing worker name", HttpStatusCode.NotFound);
+
+        if (pool.Template.Family == CoinFamily.Ethereum)
+            address = address.ToLower();
+
+        // Fetch stats (Created = first share, Updated = fetch time)
+        var result = await cf.Run(con =>
+            workerRepo.GetWorkerStatsAsync(con, null, pool.Id, address, worker)
+        );
+
+        if (result == null)
+            throw new ApiException("No worker stats found", HttpStatusCode.NotFound);
+
+        // Compute real uptime = now – firstSeen
+        var now    = clock.Now;              // or DateTime.UtcNow
+        var uptime = now - result.Created;
+
+        return new Responses.WorkerStats
+        {
+            Miner          = result.Miner,
+            Worker         = result.Worker,
+            BestDifficulty = result.BestDifficulty,
+            ValidShares    = result.ValidShares,
+            InvalidShares  = result.InvalidShares,
+            FoundBlocks    = result.FoundBlocks,
+            Difficulty     = result.Difficulty,
+            Uptime         = uptime
+        };
     }
 
     #endregion // Actions

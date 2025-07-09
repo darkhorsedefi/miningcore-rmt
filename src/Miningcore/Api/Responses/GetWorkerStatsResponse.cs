@@ -8,8 +8,8 @@ public class WorkerStats
     public long ValidShares { get; set; }
     public long InvalidShares { get; set; }
     public long FoundBlocks { get; set; }
-    public TimeSpan Uptime { get; set; }
     public double Difficulty { get; set; }
+    public TimeSpan Uptime { get; set; }
 }
 
 public class WorkerStatsResponse
