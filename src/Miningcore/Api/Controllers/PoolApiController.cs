@@ -826,23 +826,7 @@ public class PoolApiController : ApiControllerBase
         if (result == null)
             throw new ApiException("No worker stats found", HttpStatusCode.NotFound);
 
-        // Compute uptime as (current time) minus (first-seen/Created)
-        // Use clock.Now if you want your server's clock; otherwise DateTime.UtcNow
-        var now = clock.Now;
-        var uptime = now - result.Created;
-
-        // Return a fresh Response object with the new uptime
-        return new Responses.WorkerStats
-        {
-            Miner          = result.Miner,
-            Worker         = result.Worker,
-            BestDifficulty = result.BestDifficulty,
-            ValidShares    = result.ValidShares,
-            InvalidShares  = result.InvalidShares,
-            FoundBlocks    = result.FoundBlocks,
-            Difficulty     = result.Difficulty,
-            Uptime         = uptime
-        };
+        return mapper.Map<Responses.WorkerStats>(result);
     }
 
 
