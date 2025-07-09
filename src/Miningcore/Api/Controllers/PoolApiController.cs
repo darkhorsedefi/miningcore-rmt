@@ -806,28 +806,32 @@ public class PoolApiController : ApiControllerBase
     [HttpGet("{poolId}/miners/{address}/workers/{worker}/workerstats")]
     public async Task<Responses.WorkerStats> GetWorkerStatsAsync(string poolId, string address, string worker)
     {
+        // Validate inputs & get pool
         var pool = GetPool(poolId);
 
-        if(string.IsNullOrEmpty(address))
+        if (string.IsNullOrEmpty(address))
             throw new ApiException("Invalid or missing miner address", HttpStatusCode.NotFound);
 
-        if(string.IsNullOrEmpty(worker))
+        if (string.IsNullOrEmpty(worker))
             throw new ApiException("Invalid or missing worker name", HttpStatusCode.NotFound);
 
-        if(pool.Template.Family == CoinFamily.Ethereum)
+        if (pool.Template.Family == CoinFamily.Ethereum)
             address = address.ToLower();
 
-        var result = await cf.Run(con => workerRepo.GetWorkerStatsAsync(con, null, pool.Id, address, worker));
+        // Fetch the stats DTO from your repository
+        var result = await cf.Run(con =>
+            workerRepo.GetWorkerStatsAsync(con, null, pool.Id, address, worker)
+        );
 
-        if(result == null)
+        if (result == null)
             throw new ApiException("No worker stats found", HttpStatusCode.NotFound);
 
-        //return mapper.Map<Responses.WorkerStats>(result);
-        
-        // compute real uptime as now minus first‐seen
-        var now    = DateTime.UtcNow;
+        // Compute uptime as (current time) minus (first-seen/Created)
+        // Use clock.Now if you want your server's clock; otherwise DateTime.UtcNow
+        var now = clock.Now;
         var uptime = now - result.Created;
 
+        // Return a fresh Response object with the new uptime
         return new Responses.WorkerStats
         {
             Miner          = result.Miner,
@@ -840,6 +844,7 @@ public class PoolApiController : ApiControllerBase
             Uptime         = uptime
         };
     }
+
 
     #endregion // Actions
 
