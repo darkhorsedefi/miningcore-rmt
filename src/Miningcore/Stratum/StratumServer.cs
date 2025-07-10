@@ -23,6 +23,9 @@ using NLog;
 using Contract = Miningcore.Contracts.Contract;
 using static Miningcore.Util.ActionUtils;
 
+using Newtonsoft.Json.Linq;
+using System.Linq;
+
 namespace Miningcore.Stratum;
 
 public abstract class StratumServer
@@ -31,17 +34,23 @@ public abstract class StratumServer
         IComponentContext ctx,
         IMessageBus messageBus,
         RecyclableMemoryStreamManager rmsm,
-        IMasterClock clock)
+        IMasterClock clock,
+        IConnectionFactory cf,
+        IMinerWorkerRepository workerRepo)
     {
         Contract.RequiresNonNull(ctx);
         Contract.RequiresNonNull(messageBus);
         Contract.RequiresNonNull(rmsm);
         Contract.RequiresNonNull(clock);
+        Contract.RequiresNonNull(cf);
+        Contract.RequiresNonNull(workerRepo);
 
         this.ctx = ctx;
         this.messageBus = messageBus;
         this.rmsm = rmsm;
         this.clock = clock;
+        this.cf = cf;
+        this.workerRepo = workerRepo;
     }
 
     static StratumServer()
@@ -81,6 +90,8 @@ public abstract class StratumServer
     protected readonly IMessageBus messageBus;
     private readonly RecyclableMemoryStreamManager rmsm;
     protected readonly IMasterClock clock;
+    protected readonly IConnectionFactory cf;
+    protected readonly IMinerWorkerRepository workerRepo;
     protected ClusterConfig clusterConfig;
     protected PoolConfig poolConfig;
     protected IBanManager banManager;
@@ -195,6 +206,24 @@ public abstract class StratumServer
 
         logger.Debug(() => $"[{connection.ConnectionId}] Dispatching request '{request.Method}' [{request.Id}]");
 
+        // ── 1) session start on authorize ───────────────────────────────────────
+        if (request.Method == "mining.authorize")
+        {
+            var arr    = request.Params as JArray;
+            var miner  = arr?.ElementAtOrDefault(0)?.ToString();
+            var worker = arr?.ElementAtOrDefault(1)?.ToString() ?? "";
+
+            if (!string.IsNullOrEmpty(miner))
+            {
+                connection.ContextAs<WorkerContextBase>().Miner  = miner;
+                connection.ContextAs<WorkerContextBase>().Worker = worker;
+
+                await cf.RunTx((db, tx) =>
+                    workerRepo.StartSessionAsync(db, tx, poolConfig.Id, miner, worker),
+                    true);
+            }
+        }
+
         var tsRequest = new Timestamped<JsonRpcRequest>(request, clock.Now);
 
         await OnRequestAsync(connection, tsRequest, ct);
@@ -202,7 +231,7 @@ public abstract class StratumServer
         PublishTelemetry(TelemetryCategory.StratumRequest, request.Method, clock.Now - tsRequest.Timestamp);
     }
 
-    protected void OnConnectionError(StratumConnection connection, Exception ex)
+    protected async void OnConnectionError(StratumConnection connection, Exception ex)
     {
         if(ex is AggregateException)
             ex = ex.InnerException;
@@ -276,13 +305,28 @@ public abstract class StratumServer
         }
 
         UnregisterConnection(connection);
+
+        var ctxErr = connection.ContextAs<WorkerContextBase>();
+        if (!string.IsNullOrEmpty(ctxErr.Miner))
+        {
+            await cf.RunTx((db, tx) =>
+                workerRepo.EndSessionAsync(db, tx, poolConfig.Id, ctxErr.Miner, ctxErr.Worker),
+                true);
+        }
     }
 
-    protected void OnConnectionComplete(StratumConnection connection)
+    protected async void OnConnectionComplete(StratumConnection connection)
     {
         logger.Debug(() => $"[{connection.ConnectionId}] Received EOF");
-
         UnregisterConnection(connection);
+
+        var ctx = connection.ContextAs<WorkerContextBase>();
+        if (!string.IsNullOrEmpty(ctx.Miner))
+        {
+            await cf.RunTx((db, tx) =>
+                workerRepo.EndSessionAsync(db, tx, poolConfig.Id, ctx.Miner, ctx.Worker),
+                true);
+        }
     }
 
     protected void Disconnect(StratumConnection connection)

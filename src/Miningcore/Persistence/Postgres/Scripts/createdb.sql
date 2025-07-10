@@ -138,6 +138,7 @@ CREATE TABLE workerstats
 	invalidshares BIGINT NOT NULL DEFAULT 0,
 	foundblocks BIGINT NOT NULL DEFAULT 0,
 	difficulty DOUBLE PRECISION NULL,
+	sessionstart TIMESTAMPTZ NULL,
 
 	primary key(poolid, miner, worker)
 );

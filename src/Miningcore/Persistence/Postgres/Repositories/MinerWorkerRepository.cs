@@ -97,6 +97,34 @@ public class MinerWorkerRepository : IMinerWorkerRepository
         };
     }
 
+    // Call this when the worker (re)connects
+    public Task StartSessionAsync(IDbConnection con, IDbTransaction tx,
+        string poolId, string miner, string worker)
+    {
+        const string sql = @"
+        INSERT INTO workerstats(poolid, miner, worker, sessionstart, created, updated)
+        VALUES(@poolId,@miner,@worker, now(), now(), now())
+        ON CONFLICT (poolid, miner, worker)
+        DO UPDATE SET sessionstart = now(), updated = now();";
+
+        return con.ExecuteAsync(sql, new { poolId, miner, worker }, tx);
+    }
+
+    // Call this when the worker disconnects
+    public Task EndSessionAsync(IDbConnection con, IDbTransaction tx,
+        string poolId, string miner, string worker)
+    {
+        const string sql = @"
+        UPDATE workerstats
+            SET sessionstart = NULL,
+                updated      = now()
+        WHERE poolid = @poolId
+            AND miner  = @miner
+            AND worker = @worker;";
+
+        return con.ExecuteAsync(sql, new { poolId, miner, worker }, tx);
+    }
+
     public async Task<Model.MinerWorkerStats[]> GetWorkerStatsAsync(
         IDbConnection con, IDbTransaction tx,
         string poolId, string miner)

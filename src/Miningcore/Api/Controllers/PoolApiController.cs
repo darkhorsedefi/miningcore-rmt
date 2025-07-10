@@ -850,7 +850,10 @@ public class PoolApiController : ApiControllerBase
 
         // Compute real uptime = now – firstSeen
         var now    = clock.Now;              // or DateTime.UtcNow
-        var uptime = now - result.Created;
+        //var uptime = now - result.Created;
+        var uptime = result.SessionStart.HasValue
+            ? now - result.SessionStart.Value
+            : TimeSpan.Zero;
 
         return new Responses.WorkerStats
         {
