@@ -87,6 +87,10 @@ namespace Miningcore.Persistence.Postgres.Repositories
             // 5) read session start (for uptime)
             var sessionStart = statsEntity?.SessionStart;
 
+            var uptime = sessionStart.HasValue
+                     ? now - sessionStart.Value
+                     : TimeSpan.Zero;
+
             // 6) build domain DTO
             return new MinerWorkerStats
             {
@@ -94,13 +98,14 @@ namespace Miningcore.Persistence.Postgres.Repositories
                 Miner          = miner,
                 Worker         = worker,
                 BestDifficulty = bestDifficulty,
-                Difficulty     = bestDifficulty,   // show best‐share here
+                Difficulty     = bestDifficulty,
                 Created        = firstSeen,
                 Updated        = now,
                 ValidShares    = validShares,
                 InvalidShares  = invalidShares,
                 FoundBlocks    = foundBlocks,
-                SessionStart   = sessionStart
+                SessionStart   = sessionStart,
+                Uptime         = uptime
             };
         }
 

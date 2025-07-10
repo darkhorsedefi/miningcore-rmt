@@ -139,6 +139,7 @@ CREATE TABLE workerstats
 	foundblocks BIGINT NOT NULL DEFAULT 0,
 	difficulty DOUBLE PRECISION NULL,
 	sessionstart TIMESTAMPTZ NULL,
+	first_seen_utc timestamptz NOT NULL DEFAULT now(),
 
 	primary key(poolid, miner, worker)
 );
