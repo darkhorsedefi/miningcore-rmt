@@ -25,6 +25,8 @@ using static Miningcore.Util.ActionUtils;
 
 using Newtonsoft.Json.Linq;
 using System.Linq;
+using Miningcore.Persistence;
+using Miningcore.Persistence.Repositories;
 
 namespace Miningcore.Stratum;
 
