@@ -1,183 +1,203 @@
+using System;
+using System.Collections.Generic;
 using System.Data;
+using System.Linq;
+using System.Threading.Tasks;
 using AutoMapper;
 using Dapper;
 using Miningcore.Persistence.Model;
 using Miningcore.Persistence.Repositories;
-using Miningcore.Persistence.Postgres.Entities;
+using Entity = Miningcore.Persistence.Postgres.Entities.MinerWorkerStats;
 
-using Model   = Miningcore.Persistence.Model;
-using Entity  = Miningcore.Persistence.Postgres.Entities;
-
-namespace Miningcore.Persistence.Postgres.Repositories;
-
-public class MinerWorkerRepository : IMinerWorkerRepository
+namespace Miningcore.Persistence.Postgres.Repositories
 {
-    public MinerWorkerRepository(IMapper mapper)
+    public class MinerWorkerRepository : IMinerWorkerRepository
     {
-        this.mapper = mapper;
-    }
+        private readonly IMapper mapper;
 
-    private readonly IMapper mapper;
+        public MinerWorkerRepository(IMapper mapper)
+        {
+            this.mapper = mapper;
+        }
 
-    public async Task<Model.MinerWorkerStats> GetWorkerStatsAsync(
-    IDbConnection con, IDbTransaction tx,
-    string poolId, string miner, string worker)
-    {
-        // Now = “as of” for uptime
-        var now = DateTime.UtcNow;
+        /// <summary>
+        /// Returns per-worker stats (including uptime/session tracking).
+        /// </summary>
+        public async Task<MinerWorkerStats> GetWorkerStatsAsync(
+            IDbConnection con, IDbTransaction tx,
+            string poolId, string miner, string worker)
+        {
+            var now = DateTime.UtcNow;
 
-        // 1) Try to load any existing workerstats row
-        var entity = await con.QuerySingleOrDefaultAsync<Entity.MinerWorkerStats>(
-            @"SELECT * 
-                FROM workerstats
-            WHERE poolid = @poolId
-                AND miner  = @miner
-                AND worker = @worker",
-            new { poolId, miner, worker }, tx);
-
-        // 2) Always tally up shares & blocks
-        var validShares = await con.ExecuteScalarAsync<long>(
-            @"SELECT COUNT(*) FROM shares
-                WHERE poolid = @poolId
-                AND miner  = @miner
-                AND worker = @worker",
-            new { poolId, miner, worker }, tx);
-
-        var invalidShares = await con.ExecuteScalarAsync<long>(
-            @"SELECT COUNT(*) FROM shareerrors
-                WHERE poolid = @poolId
-                AND miner  = @miner
-                AND worker = @worker",
-            new { poolId, miner, worker }, tx);
-
-        var foundBlocks = await con.ExecuteScalarAsync<long>(
-            @"SELECT COUNT(*) FROM blocks
-                WHERE poolid = @poolId
-                AND miner  = @miner
-                AND worker = @worker
-                AND status = 'confirmed'",
-            new { poolId, miner, worker }, tx);
-
-        // 3) Compute best-share difficulty from the shares table if no row exists
-        var bestShareDiff = entity != null
-            ? entity.BestDifficulty
-            : await con.ExecuteScalarAsync<double>(
-                @"SELECT COALESCE(MAX(difficulty), 0) 
-                    FROM shares
-                WHERE poolid = @poolId
-                    AND miner  = @miner
-                    AND worker = @worker",
+            // 1) load persisted row (if any)
+            var statsEntity = await con.QuerySingleOrDefaultAsync<Entity>(
+                @"SELECT * 
+                    FROM workerstats
+                   WHERE poolid = @poolId
+                     AND miner  = @miner
+                     AND worker = @worker",
                 new { poolId, miner, worker }, tx);
 
-        // 4) Compute the “first seen” timestamp if no row exists
-        var firstShareTime = entity != null
-            ? entity.Created
-            : (await con.ExecuteScalarAsync<DateTime?>(
-                @"SELECT MIN(created) 
-                    FROM shares
-                    WHERE poolid = @poolId
-                    AND miner  = @miner
-                    AND worker = @worker",
-                new { poolId, miner, worker }, tx)
-            ?? now);
+            // 2) tally shares & confirmed blocks
+            var validShares = await con.ExecuteScalarAsync<long>(
+                @"SELECT COUNT(*) FROM shares
+                   WHERE poolid = @poolId
+                     AND miner  = @miner
+                     AND worker = @worker",
+                new { poolId, miner, worker }, tx);
 
-        // 5) Build and return the DTO, using now for Updated so uptime = now–Created
-        return new Model.MinerWorkerStats
-        {
-            PoolId         = poolId,
-            Miner          = miner,
-            Worker         = worker,
-            BestDifficulty = bestShareDiff,
-            Difficulty     = bestShareDiff,       // show best‐share diff in your “Difficulty” column
-            Created        = firstShareTime,
-            Updated        = now,
-            ValidShares    = validShares,
-            InvalidShares  = invalidShares,
-            FoundBlocks    = foundBlocks
-        };
-    }
+            var invalidShares = await con.ExecuteScalarAsync<long>(
+                @"SELECT COUNT(*) FROM shareerrors
+                   WHERE poolid = @poolId
+                     AND miner  = @miner
+                     AND worker = @worker",
+                new { poolId, miner, worker }, tx);
 
-    // Call this when the worker (re)connects
-    public Task StartSessionAsync(IDbConnection con, IDbTransaction tx,
-        string poolId, string miner, string worker)
-    {
-        const string sql = @"
-        INSERT INTO workerstats(poolid, miner, worker, sessionstart, created, updated)
-        VALUES(@poolId,@miner,@worker, now(), now(), now())
-        ON CONFLICT (poolid, miner, worker)
-        DO UPDATE SET sessionstart = now(), updated = now();";
+            var foundBlocks = await con.ExecuteScalarAsync<long>(
+                @"SELECT COUNT(*) FROM blocks
+                   WHERE poolid = @poolId
+                     AND miner  = @miner
+                     AND worker = @worker
+                     AND status = 'confirmed'",
+                new { poolId, miner, worker }, tx);
 
-        return con.ExecuteAsync(sql, new { poolId, miner, worker }, tx);
-    }
+            // 3) best share difficulty: persisted if present, otherwise from shares
+            var bestDifficulty = statsEntity != null
+                ? statsEntity.BestDifficulty
+                : await con.ExecuteScalarAsync<double>(
+                    @"SELECT COALESCE(MAX(difficulty), 0)
+                        FROM shares
+                       WHERE poolid = @poolId
+                         AND miner  = @miner
+                         AND worker = @worker",
+                    new { poolId, miner, worker }, tx);
 
-    // Call this when the worker disconnects
-    public Task EndSessionAsync(IDbConnection con, IDbTransaction tx,
-        string poolId, string miner, string worker)
-    {
-        const string sql = @"
-        UPDATE workerstats
-            SET sessionstart = NULL,
-                updated      = now()
-        WHERE poolid = @poolId
-            AND miner  = @miner
-            AND worker = @worker;";
+            // 4) first seen time: persisted Created if present, else earliest share or now
+            var firstSeen = statsEntity != null
+                ? statsEntity.Created
+                : (await con.ExecuteScalarAsync<DateTime?>(
+                    @"SELECT MIN(created)
+                        FROM shares
+                       WHERE poolid = @poolId
+                         AND miner  = @miner
+                         AND worker = @worker",
+                    new { poolId, miner, worker }, tx) 
+                   ?? now);
 
-        return con.ExecuteAsync(sql, new { poolId, miner, worker }, tx);
-    }
+            // 5) read session start (for uptime)
+            var sessionStart = statsEntity?.SessionStart;
 
-    public async Task<Model.MinerWorkerStats[]> GetWorkerStatsAsync(
-        IDbConnection con, IDbTransaction tx,
-        string poolId, string miner)
-    {
-        const string query = @"SELECT * FROM workerstats WHERE poolid=@poolId AND miner=@miner";
-
-        var entities = await con.QueryAsync<Entity.MinerWorkerStats>(
-            query, new { poolId, miner }, tx);
-
-        var list = new List<Model.MinerWorkerStats>();
-        foreach (var e in entities)
-        {
-            var stats = await GetWorkerStatsAsync(con, tx, poolId, miner, e.Worker);
-            if (stats != null)
-                list.Add(stats);
+            // 6) build domain DTO
+            return new MinerWorkerStats
+            {
+                PoolId         = poolId,
+                Miner          = miner,
+                Worker         = worker,
+                BestDifficulty = bestDifficulty,
+                Difficulty     = bestDifficulty,   // show best‐share here
+                Created        = firstSeen,
+                Updated        = now,
+                ValidShares    = validShares,
+                InvalidShares  = invalidShares,
+                FoundBlocks    = foundBlocks,
+                SessionStart   = sessionStart
+            };
         }
 
-        return list.ToArray();
-    }
-
-    public async Task<Model.MinerWorkerStats[]> GetWorkerStatsAsync(
-        IDbConnection con, IDbTransaction tx,
-        string poolId)
-    {
-        const string query = @"SELECT * FROM workerstats WHERE poolid=@poolId";
-
-        var entities = await con.QueryAsync<Entity.MinerWorkerStats>(
-            query, new { poolId }, tx);
-
-        var list = new List<Model.MinerWorkerStats>();
-        foreach (var e in entities)
+        /// <summary>
+        /// Marks the start of a new worker session (on connect/authorize).
+        /// </summary>
+        public Task StartSessionAsync(
+            IDbConnection con, IDbTransaction tx,
+            string poolId, string miner, string worker)
         {
-            var stats = await GetWorkerStatsAsync(con, tx, poolId, e.Miner, e.Worker);
-            if (stats != null)
-                list.Add(stats);
+            const string sql = @"
+                INSERT INTO workerstats(poolid, miner, worker, sessionstart, created, updated)
+                VALUES(@poolId, @miner, @worker, now(), now(), now())
+                ON CONFLICT (poolid, miner, worker) DO
+                  UPDATE SET sessionstart = now(), updated = now();";
+
+            return con.ExecuteAsync(sql, new { poolId, miner, worker }, tx);
         }
 
-        return list.ToArray();
-    }
+        /// <summary>
+        /// Clears session start (on disconnect).
+        /// </summary>
+        public Task EndSessionAsync(
+            IDbConnection con, IDbTransaction tx,
+            string poolId, string miner, string worker)
+        {
+            const string sql = @"
+                UPDATE workerstats
+                   SET sessionstart = NULL,
+                       updated      = now()
+                 WHERE poolid = @poolId
+                   AND miner  = @miner
+                   AND worker = @worker;";
 
-    public Task UpdateWorkerStatsAsync(
-        IDbConnection con, IDbTransaction tx,
-        Model.MinerWorkerStats settings)
-    {
-        const string query = @"
-            INSERT INTO workerstats(poolid, miner, worker, bestdifficulty, difficulty, created, updated)
-            VALUES(@PoolId, @Miner, @Worker, @BestDifficulty, @Difficulty, @Created, @Updated)
-            ON CONFLICT (poolid, miner, worker)
-            DO UPDATE SET
-                bestdifficulty = EXCLUDED.bestdifficulty,
-                difficulty     = EXCLUDED.difficulty,
-                updated        = EXCLUDED.updated";
+            return con.ExecuteAsync(sql, new { poolId, miner, worker }, tx);
+        }
 
-        return con.ExecuteAsync(query, settings, tx);
+        /// <summary>
+        /// Returns all workers for a miner.
+        /// </summary>
+        public async Task<MinerWorkerStats[]> GetWorkerStatsAsync(
+            IDbConnection con, IDbTransaction tx,
+            string poolId, string miner)
+        {
+            const string query = @"SELECT worker FROM workerstats WHERE poolid = @poolId AND miner = @miner";
+
+            var workers = await con.QueryAsync<string>(query, new { poolId, miner }, tx);
+
+            var list = new List<MinerWorkerStats>(workers.Count());
+            foreach (var w in workers)
+            {
+                var stats = await GetWorkerStatsAsync(con, tx, poolId, miner, w);
+                if (stats != null)
+                    list.Add(stats);
+            }
+
+            return list.ToArray();
+        }
+
+        /// <summary>
+        /// Returns all workers across all miners in a pool.
+        /// </summary>
+        public async Task<MinerWorkerStats[]> GetWorkerStatsAsync(
+            IDbConnection con, IDbTransaction tx,
+            string poolId)
+        {
+            const string query = @"SELECT miner, worker FROM workerstats WHERE poolid = @poolId";
+
+            var rows = await con.QueryAsync<(string Miner, string Worker)>(query, new { poolId }, tx);
+
+            var list = new List<MinerWorkerStats>(rows.Count());
+            foreach (var (m, w) in rows)
+            {
+                var stats = await GetWorkerStatsAsync(con, tx, poolId, m, w);
+                if (stats != null)
+                    list.Add(stats);
+            }
+
+            return list.ToArray();
+        }
+
+        /// <summary>
+        /// Persists best‐share difficulty/difficulty fields (legacy).
+        /// </summary>
+        public Task UpdateWorkerStatsAsync(
+            IDbConnection con, IDbTransaction tx,
+            MinerWorkerStats settings)
+        {
+            const string sql = @"
+                INSERT INTO workerstats(poolid, miner, worker, bestdifficulty, difficulty, created, updated)
+                VALUES(@PoolId, @Miner, @Worker, @BestDifficulty, @Difficulty, @Created, @Updated)
+                ON CONFLICT (poolid, miner, worker) DO UPDATE
+                  SET bestdifficulty = EXCLUDED.bestdifficulty,
+                      difficulty     = EXCLUDED.difficulty,
+                      updated        = EXCLUDED.updated;";
+
+            return con.ExecuteAsync(sql, settings, tx);
+        }
     }
 }

@@ -39,6 +39,8 @@ public abstract class PoolBase : StratumServer,
         IStatsRepository statsRepo,
         IMapper mapper,
         IMasterClock clock,
+        IConnectionFactory cf,
+        IMinerWorkerRepository workerRepo,
         IMessageBus messageBus,
         RecyclableMemoryStreamManager rmsm,
         NicehashService nicehashService) : base(ctx, messageBus, rmsm, clock)
