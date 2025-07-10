@@ -27,6 +27,7 @@ using Newtonsoft.Json.Linq;
 using System.Linq;
 using Miningcore.Persistence;
 using Miningcore.Persistence.Repositories;
+using Miningcore.Mining;
 
 namespace Miningcore.Stratum;
 
