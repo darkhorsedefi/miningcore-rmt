@@ -28,13 +28,14 @@ public class HandshakePool : PoolBase
     public HandshakePool(IComponentContext ctx,
         JsonSerializerSettings serializerSettings,
         IConnectionFactory cf,
+        IMinerWorkerRepository workerRepo,
         IStatsRepository statsRepo,
         IMapper mapper,
         IMasterClock clock,
         IMessageBus messageBus,
         RecyclableMemoryStreamManager rmsm,
         NicehashService nicehashService) :
-        base(ctx, serializerSettings, cf, statsRepo, mapper, clock, messageBus, rmsm, nicehashService)
+        base(ctx, serializerSettings, cf, workerRepo, statsRepo, mapper, clock, messageBus, rmsm, nicehashService)
     {
     }
 
