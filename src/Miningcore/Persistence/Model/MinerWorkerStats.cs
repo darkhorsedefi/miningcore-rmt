@@ -13,4 +13,5 @@ public class MinerWorkerStats
     public long FoundBlocks { get; set; }
     public double Difficulty { get; set; }
     public DateTime? SessionStart { get; set; }
+    public TimeSpan Uptime { get; set; }
 }
