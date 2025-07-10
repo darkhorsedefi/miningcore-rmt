@@ -42,7 +42,7 @@ public abstract class PoolBase : StratumServer,
         IMinerWorkerRepository workerRepo,
         IMessageBus messageBus,
         RecyclableMemoryStreamManager rmsm,
-        NicehashService nicehashService) : base(ctx, messageBus, rmsm, clock)
+        NicehashService nicehashService) : base(ctx, messageBus, rmsm, clock, cf, workerRepo)
     {
         Contract.RequiresNonNull(ctx);
         Contract.RequiresNonNull(serializerSettings);
