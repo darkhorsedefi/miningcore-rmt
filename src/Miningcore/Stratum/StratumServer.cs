@@ -218,6 +218,9 @@ public abstract class StratumServer
 
             if (!string.IsNullOrEmpty(miner))
             {
+                // LOG what we’re about to write
+                logger.Info(() => 
+                    $"[SessionStart] pool={poolConfig.Id} miner={miner} worker={worker}");
                 connection.ContextAs<WorkerContextBase>().Miner  = miner;
                 connection.ContextAs<WorkerContextBase>().Worker = worker;
 
