@@ -62,6 +62,7 @@ namespace Miningcore.Persistence.Postgres.Repositories
                 new { poolId, miner, worker }, tx);
 
             // 3) best share difficulty: persisted if present, otherwise from shares
+            /*
             var bestDifficulty = statsEntity != null
                 ? statsEntity.BestDifficulty
                 : await con.ExecuteScalarAsync<double>(
@@ -71,6 +72,14 @@ namespace Miningcore.Persistence.Postgres.Repositories
                          AND miner  = @miner
                          AND worker = @worker",
                     new { poolId, miner, worker }, tx);
+            */
+            var bestDifficulty = await con.ExecuteScalarAsync<double>(
+                @"SELECT COALESCE(MAX(difficulty), 0) 
+                    FROM shares
+                WHERE poolid = @poolId
+                    AND miner  = @miner
+                    AND worker = @worker",
+                new { poolId, miner, worker }, tx);
 
             // 4) first seen time: persisted Created if present, else earliest share or now
             var firstSeen = statsEntity != null
