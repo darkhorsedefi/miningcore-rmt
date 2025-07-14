@@ -210,17 +210,22 @@ public abstract class StratumServer
         logger.Debug(() => $"[{connection.ConnectionId}] Dispatching request '{request.Method}' [{request.Id}]");
 
         // ── 1) session start on authorize ───────────────────────────────────────
-        if (request.Method == "mining.authorize")
+        if(request.Method == "mining.authorize")
         {
-            var arr    = request.Params as JArray;
-            var miner  = arr?.ElementAtOrDefault(0)?.ToString();
-            var worker = arr?.ElementAtOrDefault(1)?.ToString() ?? "";
+            var arr   = request.Params as JArray;
+            var login = arr?.ElementAtOrDefault(0)?.ToString() ?? "";
 
-            if (!string.IsNullOrEmpty(miner))
+            // split “address.workerName”
+            var parts = login.Split(new[] {'.'}, 2);
+            var miner  = parts[0];
+            var worker = parts.Length > 1 ? parts[1] : "";
+
+            if(!string.IsNullOrEmpty(miner))
             {
-                // LOG what we’re about to write
-                logger.Info(() => 
+                // log what we’re inserting
+                logger.Info(()=>
                     $"[SessionStart] pool={poolConfig.Id} miner={miner} worker={worker}");
+
                 connection.ContextAs<WorkerContextBase>().Miner  = miner;
                 connection.ContextAs<WorkerContextBase>().Worker = worker;
 
